@@ -14,6 +14,9 @@
         public DateTime DateAdded { get; set; }
         public bool IsDeleted { get; set; }
         public bool IsActive { get; set; }
+        public decimal? StopLoss { get; set; } // ערך הסטופ לוס
+        public decimal? RiskValue { get; set; } // הערך בסיכון
+        public decimal? RiskPercentage { get; set; } // אחוז הסיכון
     }
     public class MonthlyTransactionsViewModel
     {
@@ -29,9 +32,38 @@
 
     public class MarketReturn
     {
+        public int Id { get; set; } // Primary Key
         public int Month { get; set; }
         public int Year { get; set; }
         public decimal ReturnPercentage { get; set; }
     }
+
+    public class Sale
+    {
+        public int ID { get; set; }
+        public int StockId { get; set; }
+        public double QuantitySold { get; set; }
+        public decimal SellPrice { get; set; }
+        public decimal ProfitLoss { get; set; }
+        public DateTime SaleDate { get; set; }
+    }
+
+    public class SellStockRequest
+    {
+        public int StockId { get; set; }
+        public decimal SellQuantity { get; set; }
+        public decimal SellPrice { get; set; }
+    }
+
+
+    public class RiskManagementRequest
+    {
+        public int StockId { get; set; }
+        public decimal? StopLoss { get; set; }
+        public decimal? RiskValue { get; set; }
+        public decimal? RiskPercentage { get; set; }
+    }
+
+
 
 }

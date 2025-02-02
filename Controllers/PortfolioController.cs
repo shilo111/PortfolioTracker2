@@ -2,6 +2,8 @@
 using PortfolioTracker.Models;
 using Newtonsoft.Json;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using PortfolioTracker.Data;
+using Microsoft.EntityFrameworkCore;
 
 
 
@@ -17,6 +19,11 @@ namespace PortfolioTracker.Controllers
         // רשימת היסטוריה
         private static List<PortfolioItem> historyPortfolio = new List<PortfolioItem>();
         private static List<PortfolioItem> portfolioHistory = new List<PortfolioItem>(); // רשימת היסטוריה
+        private readonly ApplicationDbContext _dbContext;
+        public PortfolioController(ApplicationDbContext dbContext)
+        {
+            _dbContext = dbContext;
+        }
 
 
         // GET: Portfolio
@@ -134,29 +141,39 @@ namespace PortfolioTracker.Controllers
         }
 
 
-
         [HttpPost]
-        public ActionResult AddMarketReturn(int month, int year, decimal returnPercentage)
+        public IActionResult AddMarketReturn(int month, int year, decimal returnPercentage, [FromServices] ApplicationDbContext dbContext)
         {
-            // בדיקה אם הערך כבר קיים ברשימת תשואות המדד
-            var existingReturn = marketReturns.FirstOrDefault(r => r.Month == month && r.Year == year);
+
+            // חיפוש ערך קיים לפי חודש ושנה
+            var existingReturn = dbContext.MarketReturn
+                .FirstOrDefault(r => r.Month == month && r.Year == year);
+
             if (existingReturn != null)
             {
-                existingReturn.ReturnPercentage = returnPercentage; // עדכון תשואה קיימת
+                // אם הערך קיים, עדכון התשואה
+                existingReturn.ReturnPercentage = returnPercentage;
             }
             else
             {
-                marketReturns.Add(new MarketReturn
+                // אם הערך לא קיים, יצירת ערך חדש
+                var newMarketReturn = new MarketReturn
                 {
                     Month = month,
                     Year = year,
-                    ReturnPercentage = returnPercentage
-                });
+                    ReturnPercentage = Math.Round(returnPercentage, 2)
+                };
+
+                dbContext.MarketReturn.Add(newMarketReturn);
             }
+
+            // שמירת השינויים בבסיס הנתונים
+            dbContext.SaveChanges();
 
             // חזרה לדף הראשי
             return RedirectToAction("Index");
         }
+
 
 
         public ActionResult Graphs()
@@ -212,54 +229,35 @@ namespace PortfolioTracker.Controllers
 
 
         // פעולה להצגת ההיסטוריה
-        public async Task<ActionResult> Full(DateTime? startDate, DateTime? endDate)
+        [HttpGet]
+        public async Task<ActionResult> Full()
         {
-            // עדכון אחוזי הרווח/הפסד עבור מניות פעילות
-            foreach (var item in portfolioHistory.Where(p => p.IsActive))
+            try
             {
-                var stockData = await GetStockInfo(item.Stock); // קריאה ל-API
-                if (stockData != null)
-                {
-                    item.Price = stockData.Price; // עדכון המחיר הנוכחי
-                    item.ChangePercentage = stockData.ChangePercentage; // עדכון אחוז השינוי
-                    item.ProfitLoss = ((decimal)item.Quantity * item.Price) - item.Investment; // חישוב רווח/הפסד
-                    item.ProfitLossPercentage = item.Investment == 0 ? 0 : (item.ProfitLoss / item.Investment) * 100; // חישוב אחוזי רווח/הפסד
-                }
-            }
+                // שליפת כל הנתונים מהטבלה PortfolioItems
+                var portfolioItems = await _dbContext.PortfolioItem.ToListAsync();
 
-            // סינון לפי התקופה המבוקשת
-            var filteredHistory = portfolioHistory.AsQueryable();
-            if (startDate.HasValue && endDate.HasValue)
+                // העברת הנתונים ל-View
+                return View(portfolioItems);
+            }
+            catch (Exception ex)
             {
-                filteredHistory = filteredHistory.Where(p => p.DateAdded >= startDate.Value && p.DateAdded <= endDate.Value);
+                ViewBag.Error = "An error occurred: " + ex.Message;
+                return View(new List<PortfolioItem>());
             }
-
-            decimal totalProfitInRange = filteredHistory.Sum(p => p.ProfitLoss);
-            ViewBag.TotalProfitInRange = totalProfitInRange;
-
-            // קיבוץ לפי שנים וחודשים
-            var yearlyData = filteredHistory
-     .OrderByDescending(p => p.DateAdded) // מיון לפי תאריך בסדר יורד
-     .GroupBy(p => p.DateAdded.Year)
-     .Select(yearGroup => new YearlyProfitViewModel
-     {
-         Year = yearGroup.Key,
-         TotalProfit = yearGroup.Sum(p => p.ProfitLoss),
-         Transactions = yearGroup
-             .GroupBy(p => p.DateAdded.ToString("MMMM"))
-             .Select(monthGroup => new MonthlyTransactionsViewModel
-             {
-                 Month = monthGroup.Key,
-                 Items = monthGroup.OrderByDescending(p => p.DateAdded).ToList() // מיון לפי תאריך בסדר יורד
-             }).ToList()
-     }).ToList();
-
-
-            // שליחת התקופה ל-ViewBag להצגה בטופס
-            ViewBag.StartDate = startDate?.ToString("yyyy-MM-dd");
-            ViewBag.EndDate = endDate?.ToString("yyyy-MM-dd");
-
-            return View(yearlyData);
+        }
+        [HttpGet]
+        public async Task<IActionResult> GetPortfolioData()
+        {
+            try
+            {
+                var portfolioItems = await _dbContext.PortfolioItem.ToListAsync();
+                return Json(portfolioItems);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error fetching portfolio data", error = ex.Message });
+            }
         }
 
 
@@ -282,11 +280,9 @@ namespace PortfolioTracker.Controllers
                 decimal profitLoss = ((decimal)quantity * stockData.Price) - investment;
                 decimal profitLossPercentage = investment == 0 ? 0 : (profitLoss / investment) * 100;
 
-                // הוספת מניה היסטורית לרשימה
-                portfolioHistory.Add(new PortfolioItem
+                // שמירת המידע בבסיס הנתונים
+                var portfolioItem = new PortfolioItem
                 {
-                    ID = portfolioHistory.Any() ? portfolioHistory.Max(p => p.ID) + 1 : 1, // ID ייחודי
-
                     Stock = stockData.Stock,
                     Quantity = quantity,
                     PurchasePrice = purchasePrice,
@@ -297,17 +293,23 @@ namespace PortfolioTracker.Controllers
                     ProfitLossPercentage = profitLossPercentage, // רווח/הפסד באחוזים
                     DateAdded = dateAdded, // התאריך שסופק
                     IsActive = false, // הופך ללא פעיל מיד
-                    IsDeleted = true // הגדרת השדה החדש
-                });
+                    IsDeleted = true // הגדרת השדה כלא פעיל
+                };
+
+                // הוספת הנתון למסד הנתונים
+                _dbContext.PortfolioItem.Add(portfolioItem);
+                await _dbContext.SaveChangesAsync();
 
                 return RedirectToAction("Full");
             }
             catch (Exception ex)
             {
+                // טיפול בחריגות
                 ViewBag.Error = "An error occurred: " + ex.Message;
                 return RedirectToAction("Full");
             }
         }
+
 
 
 
@@ -390,21 +392,89 @@ namespace PortfolioTracker.Controllers
         }
 
 
+        [HttpPost]
+        public IActionResult SellStock([FromBody] SellStockRequest request)
+        {
+            try
+            {
+                var stock = _dbContext.PortfolioItem.FirstOrDefault(s => s.ID == request.StockId);
 
+                if (stock == null)
+                {
+                    return NotFound(new { message = "Stock not found." });
+                }
 
+                if ((double)request.SellQuantity > stock.Quantity)
+                {
+                    return BadRequest(new { message = "Sell quantity exceeds available quantity." });
+                }
 
+                // חישוב כמות שנותרה ועדכון המניה
+                stock.Quantity -= (double)request.SellQuantity;
+                if (stock.Quantity == 0)
+                {
+                    stock.IsActive = false; // סימון המניה כלא פעילה אם הכמות היא 0
+                }
+
+                // יצירת רשומת מכירה
+                var sale = new Sale
+                {
+                    StockId = stock.ID,
+                    QuantitySold = (double)request.SellQuantity,
+                    SellPrice = request.SellPrice,
+                    ProfitLoss = (request.SellPrice * request.SellQuantity) - (stock.PurchasePrice * request.SellQuantity),
+                    SaleDate = DateTime.Now
+                };
+
+                _dbContext.Sales.Add(sale);
+                _dbContext.SaveChanges();
+
+                return Ok(new { message = "Stock sold successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
 
         [HttpPost]
-        public ActionResult DeleteStockFromHistory(int id)
+        public IActionResult UpdateRiskManagement([FromBody] RiskManagementRequest request)
         {
-            var transactionToRemove = portfolioHistory.FirstOrDefault(p => p.ID == id);
-            if (transactionToRemove != null)
+            var stock = _dbContext.PortfolioItem.FirstOrDefault(s => s.ID == request.StockId);
+
+            if (stock == null)
             {
-                portfolioHistory.Remove(transactionToRemove); // הסרה מהרשימה
+                return NotFound(new { message = "Stock not found." });
             }
 
-            // חזרה לדף Full
-            return RedirectToAction("Full");
+            stock.StopLoss = request.StopLoss;
+            stock.RiskValue = request.RiskValue;
+            stock.RiskPercentage = request.RiskPercentage;
+
+            _dbContext.SaveChanges();
+
+            return Ok(new { message = "Risk management updated successfully." });
+        }
+
+
+        [HttpDelete]
+
+        public ActionResult DeleteStockFromHistory(int id)
+        {
+            try
+            {
+                var stockToDelete = _dbContext.PortfolioItem.FirstOrDefault(p => p.ID == id);
+                if (stockToDelete != null)
+                {
+                    _dbContext.PortfolioItem.Remove(stockToDelete); // מחיקת השורה מה-DbSet
+                    _dbContext.SaveChanges(); // שמירת השינויים ב-SQL
+                }
+                return Json(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
         }
         [HttpGet]
 
@@ -460,6 +530,24 @@ namespace PortfolioTracker.Controllers
         {
             return ((DateTimeOffset)date).ToUnixTimeSeconds();
         }
+        [HttpGet]
+        [Route("PortfolioController/GetMarketReturns")]
+        public JsonResult GetMarketReturns()
+        {
+            var data = _dbContext.MarketReturn
+                .OrderBy(m => m.Year)
+                .ThenBy(m => m.Month)
+                .Select(m => new
+                {
+                    m.Month,
+                    m.Year,
+                    m.ReturnPercentage
+                })
+                .ToList();
+
+            return Json(data);
+        }
+
 
 
 

@@ -1,38 +1,9 @@
-﻿@model List<PortfolioTracker.Models.YearlyProfitViewModel>
-
-
-@*1) רווחים על פי שנה. -----
-2) סה"כ כספים מיועדים להשקעה
-3) מזומן
-4) גודל תיק פעיל ------
-5) סה"כ רווחים לפי תקופות ------
-6) ממוצע חודשי
-7) אחוזי הצלחה של הסחר [אבסולוטי] -----
-8) אחוזי הצלחה של הסחר [אל מול הסנפ] ------finish! 
-9) סה"כ תשואה  ------
-10) סה"כ תשואה מהסחר   -------
-11) סה"כ ביצועי השוק
-12) ביצועי יתר/חסר אל מול המדד [בנקודות/ובכסף]
-13) סעיפים 9-12 צריך לעשות עבור תקופות לבחירה
-רמת
-14) סיכון בכסף ובאחוזים מהסכום הכולל
-15) אינדיקטור של רמת סיכון [גבוה, בינוני, נמוך]
-16) גרף טופ10 מרוויחות
-17) גרף תחתית 10 מפסידות
-18) חלוקה של ההשקעות לפי סוג [ETF, מניות, קריפטו, מזומן]
-19) גרף התקדמות אל מול המדד
-20) גרף סיבות להצלחות טריידים... במועד סגירת פוזיציה צריך להיות אופציה לבחירת סיבות לכישלון ו/או הצלחה.
-21) גרף של רווח/הפסד של הפרשי שער [קריטי במסחר בישראל]
-22) גרף שמראה אחוז מהתיק של כל מנה.
-23) גרף יעדים של סכום ההשקעה לפי ערוץ, אל מול האסטרטגיה האישית [קצת יותר מורכב, אסביר פנים מול פנים - לא קריטי עכשיו]
-24) דו"ח/התראות על מניות שהכיוון שלהם אינו טוב, כלומר מבצעות מתחת למדד.*@
-
-
-
-
-
+﻿@model List<PortfolioTracker.Models.PortfolioItem>
 
 <head>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
     <style>
         .date-filter-container {
             margin-bottom: 20px;
@@ -53,16 +24,6 @@
             border-radius: 8px;
         }
 
-        .inline-form {
-            display: flex;
-            align-items: center;
-            gap: 10px; /* רווח בין השדות */
-        }
-
-            .inline-form label {
-                margin-right: 5px; /* רווח קטן בין הכיתוב לשדה */
-            }
-
         #addStockButton,
         .year-selector select {
             padding: 10px 16px;
@@ -71,186 +32,40 @@
             border-radius: 5px;
             height: 42px;
             line-height: 1;
-            display: inline-block;
-            vertical-align: middle;
-            background-color: #ffffff; /* רקע לבן עבור ה-dropdown */
-            color: #333; /* צבע טקסט */
-            box-shadow: none;
+            background-color: #ffffff;
+            color: #333;
         }
 
         #addStockButton {
-            background-color: #28a745; /* רקע ירוק לכפתור */
-            color: #ffffff; /* טקסט לבן */
-        }
-
-        .year-selector {
-            display: flex;
-            align-items: center;
-            gap: 10px; /* רווח בין הכפתור ל-dropdown */
+            background-color: #28a745;
+            color: #ffffff;
         }
     </style>
-
 </head>
+
 <body>
-    <div class="year-selector">
-        <button class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#addHistoryModal">
-            הוסף עסקת עבר
-        </button>
-
-        <form method="get" action="/Portfolio/Full" class="inline-form mb-3">
-            <label for="startDate">Start Date:</label>
-            <input type="date" name="startDate" id="startDate" class="form-control" value="@ViewBag.StartDate" />
-
-            <label for="endDate">End Date:</label>
-            <input type="date" name="endDate" id="endDate" class="form-control" value="@ViewBag.EndDate" />
-
-            <button type="submit" class="btn btn-primary">Filter</button>
-        </form>
-
-
+    <h2>Portfolio Overview</h2>
+    <button class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#addHistoryModal">
+        Add Historical Trade
+    </button>
+    <div id="portfolioContainer">
+        <!-- Table Content will be loaded dynamically -->
     </div>
-    @if (ViewBag.TotalProfitInRange != null)
-    {
-        <div class="filtered-profit-summary">
-            <h4>
-                Total Profit for Selected Range:
-                @(ViewBag.TotalProfitInRange < 0
-                ? $"-${Math.Abs(ViewBag.TotalProfitInRange).ToString("N2")}"
-                : $"${ViewBag.TotalProfitInRange.ToString("N2")}")
-            </h4>
-        </div>
-    }
 
-    @if (TempData["Error"] != null)
-    {
-        <div class="alert alert-danger">
-            @TempData["Error"]
-        </div>
-    }
-
-
-
-
-    @foreach (var year in Model)
-    {
-        <div class="year-section">
-            @(year.TotalProfit < 0
-             ? $"-${Math.Abs(year.TotalProfit).ToString("N2")}"
-             : $"${year.TotalProfit.ToString("N2")}")
-            <h2>
-                @year.Year - Total Profit: @(year.TotalProfit < 0
-                                            ? $"-${Math.Abs(year.TotalProfit).ToString("N2")}"
-                                            : $"${year.TotalProfit.ToString("N2")}")
-            </h2>
-            <!-- כפתור הוספת עסקה -->
-
-
-            @foreach (var month in year.Transactions)
-            {
-                <div class="month-section">
-                    <h3>@month.Month</h3>
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Stock</th>
-                                <th>Quantity</th>
-                                <th>Price ($)</th>
-                                <th>Day Change (%)</th>
-                                <th>Purchase Price ($)</th>
-                                <th>Investment ($)</th>
-                                <th>P/L ($)</th>
-                                <th>P/L (%)</th>
-                                <th>Date Added</th>
-                                <th>Is Active</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in month.Items)
-                            {
-                                <tr>
-                                    <td>@item.Stock</td>
-                                    <td>@item.Quantity.ToString("0.00")</td>
-                                    <td>@item.Price.ToString("0.00")</td>
-                                    <td class="pl-percentage" data-value="@item.ProfitLossPercentage">@item.ChangePercentage.ToString("0.00") %</td>
-                                    <td>@item.PurchasePrice.ToString("0.00")</td>
-                                    <td>@item.Investment.ToString("0.00")</td>
-                                    <td class="pl-value" data-value="@item.ProfitLoss">@item.ProfitLoss.ToString("0.00")</td>
-                                    <td class="pl-percentage" data-value="@item.ProfitLossPercentage">@item.ProfitLossPercentage.ToString("0.00") %</td>
-                                    <td>@item.DateAdded.ToShortDateString()</td>
-                                    <td>
-                                        @if (item.IsActive)
-                                        {
-                                            <span class="badge bg-success">Active</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge bg-secondary">Inactive</span>
-                                        }
-                                    </td>
-
-                                    <td>
-                                        @if (!item.IsDeleted)
-                                        {
-                                            <form action="/Portfolio/ToggleActiveStatus" method="post">
-                                                <input type="hidden" name="id" value="@item.ID" />
-                                                <button type="submit" class="btn btn-warning btn-sm">
-                                                    @if (item.IsActive)
-                                                    {
-                                                        <span>Disable</span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span>Enable</span>
-                                                    }
-                                                </button>
-                                            </form>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-danger">Permanently Disabled</span>
-                                        }
-                                    </td>
-
-                                    <td>
-                                        <form action="/Portfolio/DeleteStockFromHistory" method="post">
-                                            <input type="hidden" name="id" value="@item.ID" />
-                                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                                        </form>
-
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-        </div>
-    }
-
-
-
-    <!-- Modal להוספת עסקה -->
+    <!-- Add Historical Trade Modal -->
     <div class="modal fade" id="addHistoryModal" tabindex="-1" aria-labelledby="addHistoryModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="addHistoryModalLabel">הוסף עסקת עבר</h5>
+                    <h5 class="modal-title" id="addHistoryModalLabel">Add Historical Trade</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <!-- טופס להוספת עסקת עבר -->
-                    <!-- טופס להוספת עסקת עבר -->
                     <form id="addToHistoryForm" action="/Portfolio/AddToFull" method="post">
                         <div class="mb-3">
-                            <label for="stock" class="form-label">Stock Symbol- Capital letters!:</label>
-                            <input type="text"
-                                   id="stock"
-                                   name="stock"
-                                   class="form-control"
-                                   required
-                                   oninput="this.value = this.value.toUpperCase();">
+                            <label for="stock" class="form-label">Stock Symbol (Uppercase):</label>
+                            <input type="text" id="stock" name="stock" class="form-control" required oninput="this.value = this.value.toUpperCase();">
                         </div>
-
                         <div class="mb-3">
                             <label for="purchasePrice" class="form-label">Purchase Price ($):</label>
                             <input type="number" id="purchasePrice" name="purchasePrice" class="form-control" step="0.01" required>
@@ -263,28 +78,389 @@
                             <label for="dateAdded" class="form-label">Date:</label>
                             <input type="date" id="dateAdded" name="dateAdded" class="form-control" required>
                         </div>
-
-                        <button type="submit" class="btn btn-primary">Add to History</button>
+                        <button type="submit" class="btn btn-primary">Add Trade</button>
                     </form>
-
-
                 </div>
             </div>
         </div>
     </div>
-</body>
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        // צביעת תאי P/L
-        document.querySelectorAll(".pl-value, .pl-percentage").forEach(cell => {
-            const value = parseFloat(cell.getAttribute("data-value"));
-            if (!isNaN(value)) {
-                if (value < 0) {
-                    cell.style.color = "red"; // צבע אדום אם הערך שלילי
-                } else if (value > 0) {
-                    cell.style.color = "green"; // צבע ירוק אם הערך חיובי
+
+    <!-- Sell Stock Modal -->
+    <div class="modal fade" id="sellStockModal" tabindex="-1" aria-labelledby="sellStockModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="sellStockModalLabel">Sell Stock</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="sellStockForm">
+                        <input type="hidden" id="stockId" name="stockId">
+                        <div class="mb-3">
+                            <label for="sellQuantity" class="form-label">Quantity to Sell</label>
+                            <input type="number" id="sellQuantity" name="sellQuantity" class="form-control" min="0" step="0.01" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="sellPrice" class="form-label">Sell Price</label>
+                            <input type="number" id="sellPrice" name="sellPrice" class="form-control" min="0" step="0.01" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Sell</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal למידע עם טאבים -->
+    <div class="modal fade" id="viewDetailsModal" tabindex="-1" aria-labelledby="viewDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewDetailsModalLabel">Trade Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- טאבים -->
+                    <ul class="nav nav-tabs" id="tradeTabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" id="overview-tab" data-bs-toggle="tab" href="#overview" role="tab">Overview</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="risk-tab" data-bs-toggle="tab" href="#risk" role="tab">Risk Management</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="status-tab" data-bs-toggle="tab" href="#status" role="tab">Up-to-Date Status</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="exit-tab" data-bs-toggle="tab" href="#exit" role="tab">Exit & Profit</a>
+                        </li>
+                    </ul>
+
+                    <!-- תוכן הטאבים -->
+                    <div class="tab-content" id="tradeTabsContent">
+                        <!-- Overview -->
+                        <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                            <p><strong>Stock:</strong> <span id="detail-stock"></span></p>
+                            <p><strong>Quantity:</strong> <span id="detail-quantity"></span></p>
+                            <p><strong>Purchase Price:</strong> <span id="detail-purchase-price"></span></p>
+                            <p><strong>Investment:</strong> <span id="detail-investment"></span></p>
+                        </div>
+
+                        <!-- Risk Management -->
+                        <div class="tab-pane fade" id="risk" role="tabpanel">
+                            <p><strong>Stop Loss:</strong> <span id="detail-stop-loss"></span></p>
+                            <p><strong>Risk Value:</strong> <span id="detail-risk-value"></span></p>
+                            <p><strong>Risk Percentage:</strong> <span id="detail-risk-percentage"></span>%</p>
+                            <button id="updateRiskButton" class="btn btn-warning btn-sm mt-3">Update Risk Management</button>
+
+                        </div>
+
+                        <!-- Up-to-Date Status -->
+                        <div class="tab-pane fade" id="status" role="tabpanel">
+                            <p><strong>Current Price:</strong> <span id="detail-current-price"></span></p>
+                            <p><strong>Current Value:</strong> <span id="detail-current-value"></span></p>
+                            <p><strong>Price Evolution:</strong> <span id="detail-price-evolution"></span></p>
+                        </div>
+
+                        <!-- Exit & Profit -->
+                        <div class="tab-pane fade" id="exit" role="tabpanel">
+                            <p><strong>Exit Date:</strong> <span id="detail-exit-date"></span></p>
+                            <p><strong>Exit Price:</strong> <span id="detail-exit-price"></span></p>
+                            <p><strong>Final Profit:</strong> <span id="detail-final-profit"></span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- טאב ניהול סיכון -->
+    <!-- Update Risk Modal -->
+    <div class="modal fade" id="updateRiskModal" tabindex="-1" aria-labelledby="updateRiskModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="updateRiskModalLabel">Update Risk Management</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="updateRiskForm">
+                        <input type="hidden" id="risk-stockId" name="stockId">
+                        <div class="mb-3">
+                            <label for="risk-stop-loss" class="form-label">Stop Loss</label>
+                            <input type="number" id="risk-stop-loss" name="stopLoss" class="form-control" placeholder="Enter Stop Loss" step="0.01" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="risk-risk-value" class="form-label">Risk Value</label>
+                            <input type="number" id="risk-risk-value" name="riskValue" class="form-control" placeholder="Enter Risk Value" step="0.01" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="risk-risk-percentage" class="form-label">Risk Percentage</label>
+                            <input type="number" id="risk-risk-percentage" name="riskPercentage" class="form-control" placeholder="Enter Risk Percentage" step="0.01" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Update</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", async function () {
+            async function loadPortfolio() {
+                try {
+                    const response = await fetch('/Portfolio/GetPortfolioData');
+                    if (!response.ok) {
+                        throw new Error("Failed to fetch portfolio data");
+                    }
+                    const data = await response.json();
+
+                    const portfolioContainer = document.querySelector("#portfolioContainer");
+                    portfolioContainer.innerHTML = "";
+
+                    // קיבוץ וסידור הנתונים לפי שנה וחודש
+                    const groupedByYearAndMonth = data.reduce((acc, item) => {
+                        const date = new Date(item.dateAdded);
+                        const year = date.getFullYear();
+                        const month = date.getMonth();
+
+                        if (!acc[year]) acc[year] = {};
+                        if (!acc[year][month]) acc[year][month] = [];
+
+                        acc[year][month].push(item);
+                        return acc;
+                    }, {});
+
+                    // סידור השנים והחודשים מהחדש לישן
+                    const sortedYears = Object.keys(groupedByYearAndMonth).sort((a, b) => b - a);
+
+                    for (const year of sortedYears) {
+                        const sortedMonths = Object.keys(groupedByYearAndMonth[year])
+                            .map(Number)
+                            .sort((a, b) => b - a);
+
+                        for (const month of sortedMonths) {
+                            const items = groupedByYearAndMonth[year][month]
+                                .sort((a, b) => new Date(b.dateAdded) - new Date(a.dateAdded));
+
+                            const monthName = new Date(year, month).toLocaleString('default', { month: 'long' });
+                            const header = document.createElement("h3");
+                            header.textContent = `${monthName} ${year}`;
+                            portfolioContainer.appendChild(header);
+
+                            // יצירת טבלה
+                            const table = document.createElement("table");
+                            table.classList.add("table", "table-striped");
+                            table.innerHTML = `
+                                <thead>
+                                    <tr>
+                                        <th>Stock</th>
+                                        <th>Quantity</th>
+                                        <th>Price</th>
+                                        <th>Change Percentage (%)</th>
+                                        <th>Purchase Price</th>
+                                        <th>Investment</th>
+                                        <th>Profit/Loss ($)</th>
+                                        <th>Profit/Loss (%)</th>
+                                        <th>Date Added</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${items.map(item => `
+                                        <tr>
+                                            <td>${item.stock}</td>
+                                            <td>${item.quantity.toFixed(2)}</td>
+                                            <td>${item.price.toFixed(2)}</td>
+                                            <td class="${item.changePercentage >= 0 ? "text-success" : "text-danger"}">
+                                                ${item.changePercentage.toFixed(2)}%
+                                            </td>
+                                            <td>${item.purchasePrice.toFixed(2)}</td>
+                                            <td>${item.investment.toFixed(2)}</td>
+                                            <td class="${item.profitLoss >= 0 ? "text-success" : "text-danger"}">
+                                                ${item.profitLoss.toFixed(2)}
+                                            </td>
+                                            <td>${item.profitLossPercentage.toFixed(2)}%</td>
+                                            <td>${new Date(item.dateAdded).toLocaleDateString()}</td>
+                                            <td>
+                                                <button class="btn btn-info btn-sm details-stock" data-id="${item.id}">Details</button>
+                                                <button class="btn btn-primary btn-sm sell-stock" data-id="${item.id}">Sell</button>
+                                                 <button class="btn btn-warning btn-sm risk-stock" data-id="${item.id}">Risk</button>
+                                            </td>
+                                        </tr>
+                                    `).join("")}
+                                </tbody>
+                            `;
+                            portfolioContainer.appendChild(table);
+                        }
+                    }
+
+                    // אירועי כפתור מכירה (Sell)
+                    document.querySelectorAll(".sell-stock").forEach(button => {
+                        button.addEventListener("click", function () {
+                            const stockId = this.getAttribute("data-id");
+                            document.getElementById("stockId").value = stockId;
+                            new bootstrap.Modal(document.getElementById("sellStockModal")).show();
+                        });
+                    });
+
+                    // אירועי כפתור מידע (Details)
+                    document.querySelectorAll(".details-stock").forEach(button => {
+                        button.addEventListener("click", function () {
+                            const stockId = this.getAttribute("data-id");
+                            const stock = data.find(item => item.id == stockId);
+
+                            if (!stock) {
+                                alert("Stock data not found!");
+                                return;
+                            }
+
+                            // עדכון המידע בטאבים
+                            document.getElementById("detail-stock").innerText = stock.stock;
+                            document.getElementById("detail-quantity").innerText = stock.quantity.toFixed(2);
+                            document.getElementById("detail-purchase-price").innerText = stock.purchasePrice.toFixed(2);
+                            document.getElementById("detail-investment").innerText = stock.investment.toFixed(2);
+
+                            // עדכון מידע ב"טאב סיכון"
+                            document.getElementById("detail-stop-loss").innerText = stock.stopLoss || "N/A";
+                            document.getElementById("detail-risk-value").innerText = stock.riskValue || "N/A";
+                            document.getElementById("detail-risk-percentage").innerText = stock.riskPercentage || "N/A";
+
+                            // עדכון מידע ב"טאב סטטוס נוכחי"
+                            document.getElementById("detail-current-price").innerText = stock.price.toFixed(2);
+                            document.getElementById("detail-current-value").innerText = (stock.price * stock.quantity).toFixed(2);
+                            document.getElementById("detail-price-evolution").innerText = (stock.price - stock.purchasePrice).toFixed(2);
+
+                            // עדכון מידע ב"טאב יציאה"
+                            document.getElementById("detail-exit-date").innerText = stock.exitDate || "N/A";
+                            document.getElementById("detail-exit-price").innerText = stock.exitPrice || "N/A";
+                            document.getElementById("detail-final-profit").innerText = stock.finalProfit || "N/A";
+
+                            new bootstrap.Modal(document.getElementById("viewDetailsModal")).show();
+                        });
+                    });
+
+                } catch (error) {
+                    console.error("Error loading portfolio data:", error);
                 }
             }
+
+            // אירוע שליחת טופס מכירה
+            document.getElementById("sellStockForm").addEventListener("submit", async function (event) {
+                event.preventDefault();
+
+                const stockId = document.getElementById("stockId").value;
+                const sellQuantity = parseFloat(document.getElementById("sellQuantity").value);
+                const sellPrice = parseFloat(document.getElementById("sellPrice").value);
+
+                try {
+                    const response = await fetch('/Portfolio/SellStock', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            stockId,
+                            sellQuantity,
+                            sellPrice,
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.message || "Failed to sell stock");
+                    }
+
+                    const result = await response.json();
+                    alert(result.message);
+                    location.reload(); // טוען מחדש את העמוד
+                } catch (error) {
+                    console.error(error);
+                    alert(`An error occurred while selling the stock: ${error.message}`);
+                }
+            });
+                 // Attach events for "Risk" buttons
+                document.querySelectorAll(".risk-stock").forEach(button => {
+                    button.addEventListener("click", function () {
+                        const stockId = this.getAttribute("data-id");
+                        const stock = data.find(item => item.id == stockId);
+
+                        if (!stock) {
+                            alert("Stock not found!");
+                            return;
+                        }
+
+                        // Update modal fields
+                        document.getElementById("risk-stockId").value = stock.id;
+                        document.getElementById("risk-stop-loss").value = stock.stopLoss || "";
+                        document.getElementById("risk-risk-value").value = stock.riskValue || "";
+                        document.getElementById("risk-risk-percentage").value = stock.riskPercentage || "";
+
+                        new bootstrap.Modal(document.getElementById("updateRiskModal")).show();
+                    });
+                });
+            
+        
+                   
+
+                // Handle Risk Form submission
+                document.getElementById("updateRiskForm").addEventListener("submit", async function (event) {
+                    event.preventDefault();
+
+                    const stockId = document.getElementById("risk-stockId").value;
+                    const stopLoss = parseFloat(document.getElementById("risk-stop-loss").value);
+                    const riskValue = parseFloat(document.getElementById("risk-risk-value").value);
+                    const riskPercentage = parseFloat(document.getElementById("risk-risk-percentage").value);
+
+                    try {
+                        const response = await fetch('/Portfolio/UpdateRiskManagement', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ stockId, stopLoss, riskValue, riskPercentage }),
+                        });
+
+                        if (!response.ok) {
+                            const error = await response.json();
+                            throw new Error(error.message || "Failed to update risk management.");
+                        }
+
+                        const result = await response.json();
+                        alert(result.message);
+                        location.reload();
+                    } catch (error) {
+                        console.error("Error updating risk:", error);
+                        alert(`Error: ${error.message}`);
+                    }
+                });
+
+
+                console.log("JavaScript Loaded!"); // בדיקה שהסקריפט נטען
+
+
+                         document.addEventListener("click", function (event) {
+            if (event.target.classList.contains("risk-stock")) {
+                console.log("Risk button clicked!");
+                const stockId = event.target.getAttribute("data-id");
+                console.log("Stock ID:", stockId);
+
+                // פתיחת המודאל של עדכון ניהול הסיכונים
+                document.getElementById("risk-stockId").value = stockId;
+                new bootstrap.Modal(document.getElementById("updateRiskModal")).show();
+            }
         });
-    });
-</script>
+
+
+       
+
+
+            await loadPortfolio();
+        });
+
+    </script>
+
+</body>
